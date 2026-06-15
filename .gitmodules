@@ -1,0 +1,3 @@
+[submodule "refinedrust-dev"]
+	path = refinedrust-dev
+	url = git-rts@gitlab.mpi-sws.org:lgaeher/refinedrust-dev.git
