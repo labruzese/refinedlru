@@ -3,6 +3,9 @@
 #![register_tool(rr)]
 #![feature(custom_inner_attributes)]
 
+#![rr::coq_prefix("learning")]
+#![rr::package("learning")]
+
 fn main() {
     let mut a;
     let b;
@@ -24,6 +27,8 @@ struct EvenInt {
 
 impl EvenInt {
     /// Create a new even integer.
+    #[rr::requires("Zeven x")]
+    #[rr::returns("x")]
     pub unsafe fn new(x: i32) -> Self {
         Self {num: x}
     }
