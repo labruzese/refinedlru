@@ -1,0 +1,6 @@
+output_dir = "./rust_proofs"
+lib_load_paths = ["./refinedrust-dev/stdlib/", "./rust_proofs"]
+extra_specs = "./extra_specs.v"
+admit_proofs = false
+skip_unsupported_features = false
+generate_dune_project = true

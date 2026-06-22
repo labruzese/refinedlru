@@ -1,0 +1,12 @@
+[package]
+name = "vlru"
+edition = "2024"
+version = "0.18.0"
+rust-version = "1.85.0"
+description = "A formally verified LRU cache implementation"
+license = "MIT"
+keywords = ["LRU", "cache"]
+
+[dev-dependencies]
+scoped_threadpool = "0.1.*"
+stats_alloc = "0.1.*"
