@@ -68,9 +68,10 @@
 #![no_std]
 
 #![rr::package("vlru")]
+#![rr::include("stdlib")]
 
 #[cfg(test)]
-extern crate scoped_threadpool;
+use scoped_threadpool;
 
 use alloc::borrow::Borrow;
 use alloc::boxed::Box;
@@ -83,10 +84,9 @@ use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 
 extern crate std;
+extern crate alloc;
 
 use std::collections::HashMap;
-
-extern crate alloc;
 
 // Struct used to hold a reference to a key
 struct KeyRef<K> {
@@ -155,8 +155,8 @@ where
 // Struct used to hold a key value pair. Also contains references to previous and next entries
 // so we can maintain the entries in a linked list ordered by their use.
 struct LruEntry<K, V> {
-    key: mem::MaybeUninit<K>,
-    val: mem::MaybeUninit<V>,
+    key: Option<K>,
+    val: Option<V>,
     prev: *mut LruEntry<K, V>,
     next: *mut LruEntry<K, V>,
 }
@@ -164,8 +164,8 @@ struct LruEntry<K, V> {
 impl<K, V> LruEntry<K, V> {
     fn new(key: K, val: V) -> Self {
         LruEntry {
-            key: mem::MaybeUninit::new(key),
-            val: mem::MaybeUninit::new(val),
+            key: Some(key),
+            val: Some(val),
             prev: ptr::null_mut(),
             next: ptr::null_mut(),
         }
@@ -173,13 +173,14 @@ impl<K, V> LruEntry<K, V> {
 
     fn new_sigil() -> Self {
         LruEntry {
-            key: mem::MaybeUninit::uninit(),
-            val: mem::MaybeUninit::uninit(),
+            key: None,
+            val: None,
             prev: ptr::null_mut(),
             next: ptr::null_mut(),
         }
     }
 }
+
 
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
@@ -370,7 +371,10 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
                 let node_ptr: *mut LruEntry<K, V> = node_ref.as_ptr();
 
                 // gets a reference to the node to perform a swap and drops it right after
-                let node_ref = unsafe { &mut (*(*node_ptr).val.as_mut_ptr()) };
+                let node_ref = unsafe { 
+                    (*node_ptr).val.as_mut().unwrap_unchecked()
+                };
+
                 mem::swap(&mut v, node_ref);
                 let _ = node_ref;
 
@@ -384,7 +388,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
                 self.attach(node_ptr);
 
-                let keyref = unsafe { (*node_ptr).key.as_ptr() };
+                let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
                 self.map.insert(KeyRef { k: keyref }, node);
 
                 replaced.filter(|_| capture)
@@ -399,7 +403,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         if self.len() == self.cap().get() {
             // if the cache is full, remove the last entry so we can use it for the new key
             let old_key = KeyRef {
-                k: unsafe { &(*(*(*self.tail).prev).key.as_ptr()) },
+                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap_unchecked() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -407,8 +411,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             // read out the node's old key and value and then replace it
             let replaced = unsafe {
                 (
-                    mem::replace(&mut (*node_ptr).key, mem::MaybeUninit::new(k)).assume_init(),
-                    mem::replace(&mut (*node_ptr).val, mem::MaybeUninit::new(v)).assume_init(),
+                    mem::replace(&mut (*node_ptr).key, Some(k)).unwrap_unchecked(),
+                    mem::replace(&mut (*node_ptr).val, Some(v)).unwrap_unchecked(),
                 )
             };
 
@@ -454,7 +458,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { &*(*node_ptr).val.as_ptr() })
+            Some(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
         } else {
             None
         }
@@ -490,7 +494,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { &mut *(*node_ptr).val.as_mut_ptr() })
+            Some(unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() })
         } else {
             None
         }
@@ -526,7 +530,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { (&*(*node_ptr).key.as_ptr(), &*(*node_ptr).val.as_ptr()) })
+            Some(unsafe { ((*node_ptr).key.as_ref().unwrap_unchecked(), (*node_ptr).val.as_ref().unwrap_unchecked()) })
         } else {
             None
         }
@@ -567,8 +571,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             Some(unsafe {
                 (
-                    &*(*node_ptr).key.as_ptr(),
-                    &mut *(*node_ptr).val.as_mut_ptr(),
+                    (*node_ptr).key.as_ref().unwrap_unchecked(),
+                    (*node_ptr).val.as_mut().unwrap_unchecked(),
                 )
             })
         } else {
@@ -637,7 +641,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { &*(*node_ptr).val.as_ptr() }
+            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
         } else {
             let v = f(&k);
             let (_, node) = self.replace_or_create_node(k, v);
@@ -645,9 +649,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { &*(*node_ptr).val.as_ptr() }
+            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
         }
     }
 
@@ -688,7 +692,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { &*(*node_ptr).val.as_ptr() }
+            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
         } else {
             let v = f();
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -696,9 +700,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { &*(*node_ptr).val.as_ptr() }
+            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
         }
     }
 
@@ -773,7 +777,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok(&*(*node_ptr).val.as_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_ref().unwrap_unchecked()) }
         } else {
             let v = f(&k)?;
             let (_, node) = self.replace_or_create_node(k, v);
@@ -781,9 +785,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
             self.map.insert(KeyRef { k: keyref }, node);
-            Ok(unsafe { &*(*node_ptr).val.as_ptr() })
+            Ok(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
         }
     }
 
@@ -828,7 +832,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok(&*(*node_ptr).val.as_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_ref().unwrap_unchecked()) }
         } else {
             let v = f()?;
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -836,9 +840,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
             self.map.insert(KeyRef { k: keyref }, node);
-            Ok(unsafe { &*(*node_ptr).val.as_ptr() })
+            Ok(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
         }
     }
 
@@ -904,7 +908,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { &mut *(*node_ptr).val.as_mut_ptr() }
+            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
         } else {
             let v = f(&k);
             let (_, node) = self.replace_or_create_node(k, v);
@@ -912,9 +916,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { &mut *(*node_ptr).val.as_mut_ptr() }
+            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
         }
     }
 
@@ -954,7 +958,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { &mut *(*node_ptr).val.as_mut_ptr() }
+            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
         } else {
             let v = f();
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -962,9 +966,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { &mut *(*node_ptr).val.as_mut_ptr() }
+            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
         }
     }
 
@@ -1040,7 +1044,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok(&mut *(*node_ptr).val.as_mut_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
         } else {
             let v = f(&k)?;
             let (_, node) = self.replace_or_create_node(k, v);
@@ -1048,9 +1052,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { Ok(&mut *(*node_ptr).val.as_mut_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
         }
     }
 
@@ -1101,7 +1105,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok(&mut *(*node_ptr).val.as_mut_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
         } else {
             let v = f()?;
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -1109,9 +1113,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { Ok(&mut *(*node_ptr).val.as_mut_ptr()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
         }
     }
 
@@ -1139,7 +1143,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     {
         self.map
             .get(KeyWrapper::from_ref(k))
-            .map(|node| unsafe { &*node.as_ref().val.as_ptr() })
+            .map(|node| unsafe { node.as_ref().val.as_ref().unwrap_unchecked() })
     }
 
     /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
@@ -1166,7 +1170,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     {
         match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(node) => Some(unsafe { &mut *(*node.as_ptr()).val.as_mut_ptr() }),
+            Some(node) => Some(unsafe { (*node.as_ptr()).val.as_mut().unwrap_unchecked() }),
         }
     }
 
@@ -1194,8 +1198,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         let (key, val);
         unsafe {
             let node = (*self.tail).prev;
-            key = &(*(*node).key.as_ptr()) as &K;
-            val = &(*(*node).val.as_ptr()) as &V;
+            key = (*node).key.as_ref().unwrap_unchecked();
+            val = (*node).val.as_ref().unwrap_unchecked();
         }
 
         Some((key, val))
@@ -1225,8 +1229,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         let (key, val);
         unsafe {
             let node: *mut LruEntry<K, V> = (*self.head).next;
-            key = &(*(*node).key.as_ptr()) as &K;
-            val = &(*(*node).val.as_ptr()) as &V;
+            key = (*node).key.as_ref().unwrap_unchecked();
+            val = (*node).val.as_ref().unwrap_unchecked();
         }
 
         Some((key, val))
@@ -1285,7 +1289,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             Some(old_node) => {
                 let mut old_node = unsafe {
                     let mut old_node = *Box::from_raw(old_node.as_ptr());
-                    ptr::drop_in_place(old_node.key.as_mut_ptr());
+                    ptr::drop_in_place(old_node.key.as_mut().unwrap_unchecked());
 
                     old_node
                 };
@@ -1293,7 +1297,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
                 self.detach(&mut old_node);
 
                 let LruEntry { key: _, val, .. } = old_node;
-                unsafe { Some(val.assume_init()) }
+                unsafe { Some(val.unwrap_unchecked()) }
             }
         }
     }
@@ -1330,7 +1334,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
                 self.detach(&mut old_node);
 
                 let LruEntry { key, val, .. } = old_node;
-                unsafe { Some((key.assume_init(), val.assume_init())) }
+                unsafe { Some((key.unwrap_unchecked(), val.unwrap_unchecked())) }
             }
         }
     }
@@ -1360,7 +1364,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
         let node = *node;
         let LruEntry { key, val, .. } = node;
-        unsafe { Some((key.assume_init(), val.assume_init())) }
+        unsafe { Some((key.unwrap_unchecked(), val.unwrap_unchecked())) }
     }
 
     /// Removes and returns the key and value corresponding to the most recently
@@ -1388,7 +1392,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
         let node = *node;
         let LruEntry { key, val, .. } = node;
-        unsafe { Some((key.assume_init(), val.assume_init())) }
+        unsafe { Some((key.unwrap_unchecked(), val.unwrap_unchecked())) }
     }
 
     /// Marks the key as the most recently used one. Returns true if the key
@@ -1656,7 +1660,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         unsafe { next = (*self.head).next }
         if !core::ptr::eq(next, self.tail) {
             let old_key = KeyRef {
-                k: unsafe { &(*(*(*self.head).next).key.as_ptr()) },
+                k: unsafe { (*(*self.head).next).key.as_ref().unwrap_unchecked() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -1672,7 +1676,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         unsafe { prev = (*self.tail).prev }
         if !core::ptr::eq(prev, self.head) {
             let old_key = KeyRef {
-                k: unsafe { &(*(*(*self.tail).prev).key.as_ptr()) },
+                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap_unchecked() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -1715,8 +1719,8 @@ impl<K, V, S> Drop for LruCache<K, V, S> {
     fn drop(&mut self) {
         self.map.drain().for_each(|(_, node)| unsafe {
             let mut node = *Box::from_raw(node.as_ptr());
-            ptr::drop_in_place((node).key.as_mut_ptr());
-            ptr::drop_in_place((node).val.as_mut_ptr());
+            ptr::drop_in_place((node).key.as_mut().unwrap_unchecked());
+            ptr::drop_in_place((node).val.as_mut().unwrap_unchecked());
         });
         // We rebox the head/tail, and because these are maybe-uninit
         // they do not have the absent k/v dropped.
@@ -1783,8 +1787,8 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { &(*(*self.ptr).key.as_ptr()) as &K };
-        let val = unsafe { &(*(*self.ptr).val.as_ptr()) as &V };
+        let key = unsafe { (*self.ptr).key.as_ref().unwrap_unchecked() };
+        let val = unsafe { (*self.ptr).val.as_ref().unwrap_unchecked() };
 
         self.len -= 1;
         self.ptr = unsafe { (*self.ptr).next };
@@ -1807,8 +1811,8 @@ impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { &(*(*self.end).key.as_ptr()) as &K };
-        let val = unsafe { &(*(*self.end).val.as_ptr()) as &V };
+        let key = unsafe { (*self.end).key.as_ref().unwrap_unchecked() };
+        let val = unsafe { (*self.end).val.as_ref().unwrap_unchecked() };
 
         self.len -= 1;
         self.end = unsafe { (*self.end).prev };
@@ -1860,8 +1864,8 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { &(*(*self.ptr).key.as_ptr()) as &K };
-        let val = unsafe { &mut (*(*self.ptr).val.as_mut_ptr()) as &mut V };
+        let key = unsafe { (*self.ptr).key.as_ref().unwrap_unchecked() };
+        let val = unsafe { (*self.ptr).val.as_mut().unwrap_unchecked() };
 
         self.len -= 1;
         self.ptr = unsafe { (*self.ptr).next };
@@ -1884,8 +1888,8 @@ impl<'a, K, V> DoubleEndedIterator for IterMut<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { &(*(*self.end).key.as_ptr()) as &K };
-        let val = unsafe { &mut (*(*self.end).val.as_mut_ptr()) as &mut V };
+        let key = unsafe { (*self.end).key.as_ref().unwrap_unchecked() };
+        let val = unsafe { (*self.end).val.as_mut().unwrap_unchecked() };
 
         self.len -= 1;
         self.end = unsafe { (*self.end).prev };
