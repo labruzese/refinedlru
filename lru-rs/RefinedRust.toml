@@ -1,5 +1,5 @@
 output_dir = "./proofs"
-lib_load_paths = ["../refinedrust-dev/stdlib/" ]
+lib_load_paths = ["../refinedrust-dev/stdlib/", "../extra_libs" ]
 extra_specs = ""
 admit_proofs = false
 skip_unsupported_features = false
