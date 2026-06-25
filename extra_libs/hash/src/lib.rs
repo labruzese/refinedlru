@@ -1,0 +1,41 @@
+#![feature(register_tool)]
+#![register_tool(rr)]
+#![feature(custom_inner_attributes)]
+
+#![rr::package("extra_libs")]
+#![rr::coq_prefix("extralibs.hash")]
+
+#[rr::export_as(core::hash::Hasher)]
+pub trait Hasher {
+    // Required methods.
+    #[rr::only_spec]
+    fn finish(&self) -> u64;
+
+    #[rr::only_spec]
+    fn write(&mut self, bytes: &[u8]);
+}
+
+#[rr::export_as(core::hash::Hash)]
+pub trait Hash {
+    // Required method.
+    #[rr::only_spec]
+    #[rr::params("x", "s")]
+    #[rr::args("#x", "#s")]
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher;
+
+    // Provided method.
+    #[rr::only_spec]
+    #[rr::params("xs", "s")]
+    #[rr::args("#xs", "#s")]
+    fn hash_slice<H>(data: &[Self], state: &mut H)
+    where
+        H: Hasher,
+        Self: Sized,
+    {
+        for piece in data {
+            piece.hash(state);
+        }
+    }
+}

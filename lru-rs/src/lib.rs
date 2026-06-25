@@ -30,10 +30,9 @@
 //! ## Example
 //!
 //! ```rust
-//! extern crate lru;
+//! extern crate vlru;
 //!
-//! use lru::LruCache;
-//! use std::num::usize;
+//! use vlru::LruCache;
 //!
 //! fn main() {
 //!         let mut cache = LruCache::new(2);
@@ -69,7 +68,7 @@
 
 #![rr::package("vlru")]
 #![rr::include("stdlib")]
-#![rr::include("nonzero")]
+#![rr::include("hash")]
 
 #[cfg(test)]
 use scoped_threadpool;
@@ -225,9 +224,8 @@ impl<K: Hash + Eq, V> LruCache<K, V> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
-    /// let mut cache: LruCache<isize, &str> = LruCache::new(usize::new(10).unwrap());
+    /// use vlru::LruCache;
+    /// let mut cache: LruCache<isize, &str> = LruCache::new(10);
     /// ```
     pub fn new(cap: usize) -> LruCache<K, V> {
         LruCache::construct(cap, HashMap::with_capacity(cap))
@@ -238,8 +236,7 @@ impl<K: Hash + Eq, V> LruCache<K, V> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache: LruCache<isize, &str> = LruCache::unbounded();
     /// ```
     pub fn unbounded() -> LruCache<K, V> {
@@ -254,11 +251,10 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::{LruCache, DefaultHasher};
-    /// use std::num::usize;
+    /// use vlru::{LruCache, DefaultHasher};
     ///
     /// let s = DefaultHasher::default();
-    /// let mut cache: LruCache<isize, &str> = LruCache::with_hasher(usize::new(10).unwrap(), s);
+    /// let mut cache: LruCache<isize, &str> = LruCache::with_hasher(10, s);
     /// ```
     pub fn with_hasher(cap: usize, hash_builder: S) -> LruCache<K, V, S> {
         LruCache::construct(
@@ -273,7 +269,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::{LruCache, DefaultHasher};
+    /// use vlru::{LruCache, DefaultHasher};
     ///
     /// let s = DefaultHasher::default();
     /// let mut cache: LruCache<isize, &str> = LruCache::unbounded_with_hasher(s);
@@ -315,8 +311,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// assert_eq!(None, cache.put(1, "a"));
@@ -337,8 +332,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// assert_eq!(None, cache.push(1, "a"));
@@ -372,7 +366,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
                 // gets a reference to the node to perform a swap and drops it right after
                 let node_ref = unsafe { 
-                    (*node_ptr).val.as_mut().unwrap_unchecked()
+                    (*node_ptr).val.as_mut().unwrap()
                 };
 
                 mem::swap(&mut v, node_ref);
@@ -388,7 +382,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
                 self.attach(node_ptr);
 
-                let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
+                let keyref = unsafe { (*node_ptr).key.as_ref().unwrap() };
                 self.map.insert(KeyRef { k: keyref }, node);
 
                 replaced.filter(|_| capture)
@@ -403,7 +397,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         if self.len() == self.cap() {
             // if the cache is full, remove the last entry so we can use it for the new key
             let old_key = KeyRef {
-                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap_unchecked() },
+                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -411,8 +405,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             // read out the node's old key and value and then replace it
             let replaced = unsafe {
                 (
-                    mem::replace(&mut (*node_ptr).key, Some(k)).unwrap_unchecked(),
-                    mem::replace(&mut (*node_ptr).val, Some(v)).unwrap_unchecked(),
+                    mem::replace(&mut (*node_ptr).key, Some(k)).unwrap(),
+                    mem::replace(&mut (*node_ptr).val, Some(v)).unwrap(),
                 )
             };
 
@@ -434,8 +428,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -458,7 +451,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
+            Some(unsafe { (*node_ptr).val.as_ref().unwrap() })
         } else {
             None
         }
@@ -470,8 +463,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put("apple", 8);
@@ -494,7 +486,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() })
+            Some(unsafe { (*node_ptr).val.as_mut().unwrap() })
         } else {
             None
         }
@@ -506,8 +498,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(String::from("1"), "a");
@@ -530,7 +521,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            Some(unsafe { ((*node_ptr).key.as_ref().unwrap_unchecked(), (*node_ptr).val.as_ref().unwrap_unchecked()) })
+            Some(unsafe { ((*node_ptr).key.as_ref().unwrap(), (*node_ptr).val.as_ref().unwrap()) })
         } else {
             None
         }
@@ -543,8 +534,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -571,8 +561,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             Some(unsafe {
                 (
-                    (*node_ptr).key.as_ref().unwrap_unchecked(),
-                    (*node_ptr).val.as_mut().unwrap_unchecked(),
+                    (*node_ptr).key.as_ref().unwrap(),
+                    (*node_ptr).val.as_mut().unwrap(),
                 )
             })
         } else {
@@ -588,8 +578,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -617,8 +606,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put("One", 1);
@@ -641,7 +629,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_ref().unwrap() }
         } else {
             let v = f(&k);
             let (_, node) = self.replace_or_create_node(k, v);
@@ -649,9 +637,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap() };
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_ref().unwrap() }
         }
     }
 
@@ -665,8 +653,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// use std::rc::Rc;
     ///
     /// let key1 = Rc::new("1".to_owned());
@@ -692,7 +679,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_ref().unwrap() }
         } else {
             let v = f();
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -700,9 +687,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap() };
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_ref().unwrap() }
         }
     }
 
@@ -715,8 +702,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -749,8 +735,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put("One", 1);
@@ -777,7 +762,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok((*node_ptr).val.as_ref().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_ref().unwrap()) }
         } else {
             let v = f(&k)?;
             let (_, node) = self.replace_or_create_node(k, v);
@@ -785,9 +770,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked() };
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap() };
             self.map.insert(KeyRef { k: keyref }, node);
-            Ok(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
+            Ok(unsafe { (*node_ptr).val.as_ref().unwrap() })
         }
     }
 
@@ -802,8 +787,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// use std::rc::Rc;
     ///
     /// let key1 = Rc::new("1".to_owned());
@@ -832,7 +816,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok((*node_ptr).val.as_ref().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_ref().unwrap()) }
         } else {
             let v = f()?;
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -840,9 +824,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap()};
             self.map.insert(KeyRef { k: keyref }, node);
-            Ok(unsafe { (*node_ptr).val.as_ref().unwrap_unchecked() })
+            Ok(unsafe { (*node_ptr).val.as_ref().unwrap() })
         }
     }
 
@@ -854,8 +838,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -884,8 +867,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put("One", 1);
@@ -908,7 +890,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_mut().unwrap() }
         } else {
             let v = f(&k);
             let (_, node) = self.replace_or_create_node(k, v);
@@ -916,9 +898,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_mut().unwrap() }
         }
     }
 
@@ -931,8 +913,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// use std::rc::Rc;
     ///
     /// let key1 = Rc::new("1".to_owned());
@@ -958,7 +939,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_mut().unwrap() }
         } else {
             let v = f();
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -966,9 +947,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { (*node_ptr).val.as_mut().unwrap_unchecked() }
+            unsafe { (*node_ptr).val.as_mut().unwrap() }
         }
     }
 
@@ -981,8 +962,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1016,8 +996,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put("One", 1);
@@ -1044,7 +1023,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap()) }
         } else {
             let v = f(&k)?;
             let (_, node) = self.replace_or_create_node(k, v);
@@ -1052,9 +1031,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap()) }
         }
     }
 
@@ -1069,8 +1048,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// use std::rc::Rc;
     ///
     /// let key1 = Rc::new("1".to_owned());
@@ -1105,7 +1083,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
             self.detach(node_ptr);
             self.attach(node_ptr);
 
-            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap()) }
         } else {
             let v = f()?;
             let (_, node) = self.replace_or_create_node(k.to_owned(), v);
@@ -1113,9 +1091,9 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
 
             self.attach(node_ptr);
 
-            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap_unchecked()};
+            let keyref = unsafe { (*node_ptr).key.as_ref().unwrap()};
             self.map.insert(KeyRef { k: keyref }, node);
-            unsafe { Ok((*node_ptr).val.as_mut().unwrap_unchecked()) }
+            unsafe { Ok((*node_ptr).val.as_mut().unwrap()) }
         }
     }
 
@@ -1126,8 +1104,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1143,7 +1120,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     {
         self.map
             .get(KeyWrapper::from_ref(k))
-            .map(|node| unsafe { node.as_ref().val.as_ref().unwrap_unchecked() })
+            .map(|node| unsafe { node.as_ref().val.as_ref().unwrap() })
     }
 
     /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
@@ -1153,8 +1130,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1170,7 +1146,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     {
         match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(node) => Some(unsafe { (*node.as_ptr()).val.as_mut().unwrap_unchecked() }),
+            Some(node) => Some(unsafe { (*node.as_ptr()).val.as_mut().unwrap() }),
         }
     }
 
@@ -1181,8 +1157,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1198,8 +1173,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         let (key, val);
         unsafe {
             let node = (*self.tail).prev;
-            key = (*node).key.as_ref().unwrap_unchecked();
-            val = (*node).val.as_ref().unwrap_unchecked();
+            key = (*node).key.as_ref().unwrap();
+            val = (*node).val.as_ref().unwrap();
         }
 
         Some((key, val))
@@ -1212,8 +1187,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1229,8 +1203,8 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         let (key, val);
         unsafe {
             let node: *mut LruEntry<K, V> = (*self.head).next;
-            key = (*node).key.as_ref().unwrap_unchecked();
-            val = (*node).val.as_ref().unwrap_unchecked();
+            key = (*node).key.as_ref().unwrap();
+            val = (*node).val.as_ref().unwrap();
         }
 
         Some((key, val))
@@ -1242,8 +1216,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1268,8 +1241,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(2, "a");
@@ -1303,8 +1275,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1340,8 +1311,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(2, "a");
@@ -1359,7 +1329,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
         let node = *node;
         let LruEntry { key, val, .. } = node;
-        unsafe { Some((key.unwrap_unchecked(), val.unwrap_unchecked())) }
+        Some((key.unwrap(), val.unwrap()))
     }
 
     /// Removes and returns the key and value corresponding to the most recently
@@ -1368,8 +1338,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     ///
     /// cache.put(2, "a");
@@ -1387,7 +1356,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
         let node = *node;
         let LruEntry { key, val, .. } = node;
-        unsafe { Some((key.unwrap_unchecked(), val.unwrap_unchecked())) }
+        Some((key.unwrap(), val.unwrap()))
     }
 
     /// Marks the key as the most recently used one. Returns true if the key
@@ -1396,8 +1365,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(3);
     ///
     /// cache.put(1, "a");
@@ -1437,8 +1405,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(3);
     ///
     /// cache.put(1, "a");
@@ -1479,8 +1446,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     /// assert_eq!(cache.len(), 0);
     ///
@@ -1502,8 +1468,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache = LruCache::new(2);
     /// assert!(cache.is_empty());
     ///
@@ -1519,8 +1484,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache: LruCache<isize, &str> = LruCache::new(2);
     /// assert_eq!(cache.cap(), 2);
     /// ```
@@ -1534,8 +1498,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache: LruCache<isize, &str> = LruCache::new(2);
     ///
     /// cache.put(1, "a");
@@ -1569,8 +1532,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Example
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     /// let mut cache: LruCache<isize, &str> = LruCache::new(2);
     /// assert_eq!(cache.len(), 0);
     ///
@@ -1593,8 +1555,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     ///
     /// let mut cache = LruCache::new(3);
     /// cache.put("a", 1);
@@ -1620,8 +1581,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use lru::LruCache;
-    /// use std::num::usize;
+    /// use vlru::LruCache;
     ///
     /// struct HddBlock {
     ///     dirty: bool,
@@ -1655,7 +1615,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         unsafe { next = (*self.head).next }
         if !core::ptr::eq(next, self.tail) {
             let old_key = KeyRef {
-                k: unsafe { (*(*self.head).next).key.as_ref().unwrap_unchecked() },
+                k: unsafe { (*(*self.head).next).key.as_ref().unwrap() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -1671,7 +1631,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
         unsafe { prev = (*self.tail).prev }
         if !core::ptr::eq(prev, self.head) {
             let old_key = KeyRef {
-                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap_unchecked() },
+                k: unsafe { (*(*self.tail).prev).key.as_ref().unwrap() },
             };
             let old_node = self.map.remove(&old_key).unwrap();
             let node_ptr: *mut LruEntry<K, V> = old_node.as_ptr();
@@ -1778,8 +1738,8 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { (*self.ptr).key.as_ref().unwrap_unchecked() };
-        let val = unsafe { (*self.ptr).val.as_ref().unwrap_unchecked() };
+        let key = unsafe { (*self.ptr).key.as_ref().unwrap() };
+        let val = unsafe { (*self.ptr).val.as_ref().unwrap() };
 
         self.len -= 1;
         self.ptr = unsafe { (*self.ptr).next };
@@ -1802,8 +1762,8 @@ impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { (*self.end).key.as_ref().unwrap_unchecked() };
-        let val = unsafe { (*self.end).val.as_ref().unwrap_unchecked() };
+        let key = unsafe { (*self.end).key.as_ref().unwrap() };
+        let val = unsafe { (*self.end).val.as_ref().unwrap() };
 
         self.len -= 1;
         self.end = unsafe { (*self.end).prev };
@@ -1855,8 +1815,8 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { (*self.ptr).key.as_ref().unwrap_unchecked() };
-        let val = unsafe { (*self.ptr).val.as_mut().unwrap_unchecked() };
+        let key = unsafe { (*self.ptr).key.as_ref().unwrap() };
+        let val = unsafe { (*self.ptr).val.as_mut().unwrap() };
 
         self.len -= 1;
         self.ptr = unsafe { (*self.ptr).next };
@@ -1879,8 +1839,8 @@ impl<'a, K, V> DoubleEndedIterator for IterMut<'a, K, V> {
             return None;
         }
 
-        let key = unsafe { (*self.end).key.as_ref().unwrap_unchecked() };
-        let val = unsafe { (*self.end).val.as_mut().unwrap_unchecked() };
+        let key = unsafe { (*self.end).key.as_ref().unwrap() };
+        let val = unsafe { (*self.end).val.as_mut().unwrap() };
 
         self.len -= 1;
         self.end = unsafe { (*self.end).prev };
@@ -3070,12 +3030,12 @@ mod tests {
 /// Doctests for what should *not* compile
 ///
 /// ```compile_fail
-/// let mut cache = lru::LruCache::<u32, u32>::unbounded();
+/// let mut cache = vlru::LruCache::<u32, u32>::unbounded();
 /// let _: &'static u32 = cache.get_or_insert(0, || 92);
 /// ```
 ///
 /// ```compile_fail
-/// let mut cache = lru::LruCache::<u32, u32>::unbounded();
+/// let mut cache = vlru::LruCache::<u32, u32>::unbounded();
 /// let _: Option<(&'static u32, _)> = cache.peek_lru();
 /// let _: Option<(_, &'static u32)> = cache.peek_lru();
 /// ```

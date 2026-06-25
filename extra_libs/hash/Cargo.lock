@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "nonzero"
+name = "hash"
 version = "0.1.0"
