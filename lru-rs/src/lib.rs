@@ -67,8 +67,11 @@
 #![no_std]
 
 #![rr::package("vlru")]
+#![rr::coq_prefix("vlru")]
+
 #![rr::include("stdlib")]
 #![rr::include("hash")]
+#![rr::include("sized")]
 
 #[cfg(test)]
 use scoped_threadpool;
@@ -88,7 +91,9 @@ extern crate alloc;
 use std::collections::HashMap;
 
 // Struct used to hold a reference to a key
+#[rr::refined_by("k" : "loc")]
 struct KeyRef<K> {
+    #[rr::field("k")]
     k: *const K,
 }
 
@@ -98,6 +103,8 @@ impl<K: Hash> Hash for KeyRef<K> {
     }
 }
 
+#[rr::instantiate("PEq" := "{K::PEq}")]
+#[rr::verify]
 impl<K: PartialEq> PartialEq for KeyRef<K> {
     // NB: The unconditional_recursion lint was added in 1.76.0 and can be removed
     // once the current stable version of Rust is 1.76.0 or higher.
@@ -108,12 +115,21 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
     }
 }
 
+#[rr::instantiate("PEq_refl" := #proof "intros; apply {K::PEq_refl}")]
+#[rr::instantiate("PEq_sym" := #proof "intros; apply {K::PEq_sym")]
+#[rr::instantiate("PEq_trans" := #proof "intros; apply {K::PEq_trans}")]
+#[rr::instantiate("PEq_leibniz" := #proof "intros {K::PEq_leibniz")]
+#[rr::verify]
 impl<K: Eq> Eq for KeyRef<K> {}
 
 // This type exists to allow a "blanket" Borrow impl for KeyRef without conflicting with the
 //  stdlib blanket impl
 #[repr(transparent)]
-struct KeyWrapper<K: ?Sized>(K);
+#[rr::refined_by("k" : "{rt_of K}")]
+struct KeyWrapper<K: ?Sized>(
+    #[rr::field("k")]
+    K
+);
 
 impl<K: ?Sized> KeyWrapper<K> {
     fn from_ref(key: &K) -> &Self {
@@ -128,6 +144,7 @@ impl<K: ?Sized + Hash> Hash for KeyWrapper<K> {
     }
 }
 
+#[rr::instantiate("PEq" := "{K::PEq}")]
 impl<K: ?Sized + PartialEq> PartialEq for KeyWrapper<K> {
     // NB: The unconditional_recursion lint was added in 1.76.0 and can be removed
     // once the current stable version of Rust is 1.76.0 or higher.
@@ -138,6 +155,10 @@ impl<K: ?Sized + PartialEq> PartialEq for KeyWrapper<K> {
     }
 }
 
+#[rr::instantiate("PEq_refl" := #proof "intros; apply {K::PEq_refl}")]
+#[rr::instantiate("PEq_sym" := #proof "intros; apply {K::PEq_sym")]
+#[rr::instantiate("PEq_trans" := #proof "intros; apply {K::PEq_trans}")]
+#[rr::instantiate("PEq_leibniz" := #proof "intros {K::PEq_leibniz")]
 impl<K: ?Sized + Eq> Eq for KeyWrapper<K> {}
 
 impl<K, Q> Borrow<KeyWrapper<Q>> for KeyRef<K>
@@ -184,6 +205,7 @@ impl<K, V> LruEntry<K, V> {
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 /// An LRU Cache
+#[rr::only_spec(drop_glue)]
 pub struct LruCache<K, V, S = DefaultHasher> {
     map: HashMap<KeyRef<K>, NonNull<LruEntry<K, V>>, S>,
     cap: usize,
@@ -357,6 +379,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     // when `capture` is true.
     fn capturing_put(&mut self, k: K, mut v: V, capture: bool) -> Option<(K, V)> {
         let node_ref = self.map.get_mut(&KeyRef { k: &k });
+
 
         match node_ref {
             Some(node_ref) => {
@@ -1670,6 +1693,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     }
 }
 
+#[rr::only_spec]
 impl<K, V, S> Drop for LruCache<K, V, S> {
     fn drop(&mut self) {
         self.map.drain().for_each(|(_, node)| unsafe {

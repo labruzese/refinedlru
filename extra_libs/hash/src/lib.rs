@@ -19,16 +19,12 @@ pub trait Hasher {
 pub trait Hash {
     // Required method.
     #[rr::only_spec]
-    #[rr::params("x", "s")]
-    #[rr::args("#x", "#s")]
     fn hash<H>(&self, state: &mut H)
     where
         H: Hasher;
 
     // Provided method.
     #[rr::only_spec]
-    #[rr::params("xs", "s")]
-    #[rr::args("#xs", "#s")]
     fn hash_slice<H>(data: &[Self], state: &mut H)
     where
         H: Hasher,
