@@ -90,10 +90,13 @@ extern crate alloc;
 
 use std::collections::HashMap;
 
-// Struct used to hold a reference to a key
-#[rr::refined_by("k" : "loc")]
+/// Struct used to hold a reference  a key
+#[rr::refined_by("k" : "{rt_of K}")]
+#[rr::exists("l" : "loc", "a" : "lft")]
+#[rr::invariant(#iris "l ◁ₗ[π, Shared a] #k @ (◁ ({ty_of K}))")]
+#[rr::ty_lfts("ty_lfts {K}")]
 struct KeyRef<K> {
-    #[rr::field("k")]
+    #[rr::field("l")]
     k: *const K,
 }
 
@@ -103,8 +106,8 @@ impl<K: Hash> Hash for KeyRef<K> {
     }
 }
 
-#[rr::instantiate("PEq" := "{K::PEq}")]
 #[rr::verify]
+#[rr::instantiate("PEq" := "{K::PEq}")]
 impl<K: PartialEq> PartialEq for KeyRef<K> {
     // NB: The unconditional_recursion lint was added in 1.76.0 and can be removed
     // once the current stable version of Rust is 1.76.0 or higher.
@@ -115,11 +118,11 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
     }
 }
 
-#[rr::instantiate("PEq_refl" := #proof "intros; apply {K::PEq_refl}")]
-#[rr::instantiate("PEq_sym" := #proof "intros; apply {K::PEq_sym")]
-#[rr::instantiate("PEq_trans" := #proof "intros; apply {K::PEq_trans}")]
-#[rr::instantiate("PEq_leibniz" := #proof "intros {K::PEq_leibniz")]
 #[rr::verify]
+#[rr::instantiate("PEq_refl"    := "{K::PEq_refl}")]
+#[rr::instantiate("PEq_sym"     := "{K::PEq_sym}")]
+#[rr::instantiate("PEq_trans"   := "{K::PEq_trans}")]
+#[rr::instantiate("PEq_leibniz" := "{K::PEq_leibniz}")]
 impl<K: Eq> Eq for KeyRef<K> {}
 
 // This type exists to allow a "blanket" Borrow impl for KeyRef without conflicting with the
@@ -155,10 +158,10 @@ impl<K: ?Sized + PartialEq> PartialEq for KeyWrapper<K> {
     }
 }
 
-#[rr::instantiate("PEq_refl" := #proof "intros; apply {K::PEq_refl}")]
-#[rr::instantiate("PEq_sym" := #proof "intros; apply {K::PEq_sym")]
-#[rr::instantiate("PEq_trans" := #proof "intros; apply {K::PEq_trans}")]
-#[rr::instantiate("PEq_leibniz" := #proof "intros {K::PEq_leibniz")]
+#[rr::instantiate("PEq_refl" := "{K::PEq_refl}")]
+#[rr::instantiate("PEq_sym" := "{K::PEq_sym}")]
+#[rr::instantiate("PEq_trans" := "{K::PEq_trans}")]
+#[rr::instantiate("PEq_leibniz" := "{K::PEq_leibniz}")]
 impl<K: ?Sized + Eq> Eq for KeyWrapper<K> {}
 
 impl<K, Q> Borrow<KeyWrapper<Q>> for KeyRef<K>
