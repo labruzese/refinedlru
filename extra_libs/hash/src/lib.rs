@@ -35,3 +35,12 @@ pub trait Hash {
         }
     }
 }
+
+#[rr::export_as(core::hash::BuildHasher)]
+pub trait BuildHasher {
+    // BuildHasher::Hasher: Hasher
+    type Hasher: Hasher;
+
+    #[rr::only_spec]
+    fn build_hasher(&self) -> Self::Hasher;
+}

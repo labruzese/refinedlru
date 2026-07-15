@@ -70,8 +70,11 @@
 #![rr::coq_prefix("vlru")]
 
 #![rr::include("stdlib")]
-#![rr::include("hash")]
 #![rr::include("sized")]
+
+#![rr::include("hash")]
+#![rr::include("hashmap")]
+#![rr::include("borrow")]
 
 #[cfg(test)]
 use scoped_threadpool;
@@ -90,7 +93,7 @@ extern crate alloc;
 
 use std::collections::HashMap;
 
-/// Struct used to hold a reference  a key
+/// Struct used to hold a reference a key
 #[rr::refined_by("k" : "{rt_of K}")]
 #[rr::exists("l" : "loc", "a" : "lft")]
 #[rr::invariant(#iris "l ◁ₗ[π, Shared a] #k @ (◁ ({ty_of K}))")]

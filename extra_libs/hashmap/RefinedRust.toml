@@ -1,0 +1,2 @@
+generate_dune_project = true
+lib_load_paths = ["../../../refinedrust/stdlib", "./.."]
