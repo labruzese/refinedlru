@@ -36,6 +36,7 @@ use std::hash::{BuildHasher, Hash};
 #[rr::context("Countable {xt_of K}")]
 #[rr::refined_by("M" : "directRT (gmap {xt_of K} ({xt_of V}))")]
 #[rr::exists("k", "v", "s")]
+#[rr::only_spec(drop_glue)]
 pub struct HashMap<K, V, S = std::collections::hash_map::RandomState> {
     #[rr::field("k")]
     _k: K,
@@ -114,11 +115,11 @@ where
     #[rr::skip]
     #[rr::params("m", "k")]
     #[rr::args("m", "k")]
-    // NB: `borrow_from` is the pure conversion K <- Q supplied by the Borrow
+    // NB: `{borrow_from}` is the pure conversion K <- Q supplied by the Borrow
     // trait. RefinedRust's BTreeMap template also leaves this abstract (see the
     // TODO there). For the LruCache the lookups always go through KeyRef/KeyWrapper
     // where Q borrows K, so an identity conversion is the common case.
-    #[rr::returns("(m !! borrow_from k)")]
+    #[rr::returns("(m !! {K::borrow_from} k)")]
     pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -131,8 +132,8 @@ where
     #[rr::params("m", "k", "γ")]
     #[rr::args("(m, γ)", "k")]
     #[rr::exists("γi")]
-    #[rr::returns("if decide (is_Some (m !! borrow_from k)) then Some (m !!! borrow_from k, γi) else None")]
-    #[rr::observe("γ": "if decide (is_Some (m !! borrow_from k)) then <[borrow_from k := PlaceGhost γi]> m else m")]
+    #[rr::returns("if decide (is_Some (m !! {K::borrow_from} k)) then Some (m !!! {K::borrow_from} k, γi) else None")]
+    #[rr::observe("γ": "if decide (is_Some (m !! {K::borrow_from} k)) then <[{K::borrow_from} k := PlaceGhost γi]> m else m")]
     pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
@@ -144,8 +145,8 @@ where
     #[rr::only_spec]
     #[rr::params("m", "k", "γ")]
     #[rr::args("(m, γ)", "k")]
-    #[rr::observe("γ": "delete (borrow_from k) m")]
-    #[rr::returns("m !! borrow_from k")]
+    #[rr::observe("γ": "delete ({K::borrow_from} k) m")]
+    #[rr::returns("m !! {K::borrow_from} k")]
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
@@ -157,7 +158,7 @@ where
     #[rr::skip]
     #[rr::params("m", "k")]
     #[rr::args("m", "k")]
-    #[rr::returns("bool_decide (is_Some (m !! borrow_from k))")]
+    #[rr::returns("bool_decide (is_Some (m !! {K::borrow_from} k))")]
     pub fn contains_key<Q>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,

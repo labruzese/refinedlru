@@ -66,15 +66,15 @@
 
 #![no_std]
 
-#![rr::package("vlru")]
-#![rr::coq_prefix("vlru")]
+#![rr::package("lru")]
+#![rr::coq_prefix("lru.verification")]
 
 #![rr::include("stdlib")]
 #![rr::include("sized")]
 
+#![rr::include("borrow")]
 #![rr::include("hash")]
 #![rr::include("hashmap")]
-#![rr::include("borrow")]
 
 #[cfg(test)]
 use scoped_threadpool;

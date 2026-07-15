@@ -1,6 +1,6 @@
 From radium Require Import lang notation.
 From refinedrust Require Import typing shims.
-From vlru.vlru.generated Require Import generated_code_vlru generated_specs_vlru generated_template_drop_glue_LruEntry.
+From lru.verification.vlru.generated Require Import generated_code_vlru generated_specs_vlru generated_template_drop_glue_LruEntry.
 
 Set Default Proof Using "Type".
 

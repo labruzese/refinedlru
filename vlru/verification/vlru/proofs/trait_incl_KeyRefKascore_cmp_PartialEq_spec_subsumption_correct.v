@@ -1,15 +1,15 @@
 From radium Require Import lang notation.
 From refinedrust Require Import typing shims.
-From vlru.vlru.generated Require Import generated_specs_vlru.
+From lru.verification.vlru.generated Require Import generated_specs_vlru.
 
 Set Default Proof Using "Type".
 
 Section proof.
 Context `{RRGS : !refinedrustGS Σ}.
 
-Lemma LruCacheKVSascore_ops_Drop_spec_subsumption_correct  : (LruCacheKVSascore_ops_Drop_spec_subsumption).
+Lemma KeyRefKascore_cmp_PartialEq_spec_subsumption_correct  : (KeyRefKascore_cmp_PartialEq_spec_subsumption).
 Proof.
-  unfold LruCacheKVSascore_ops_Drop_spec_subsumption; solve_trait_incl_prelude.
+  unfold KeyRefKascore_cmp_PartialEq_spec_subsumption; solve_trait_incl_prelude.
   all: repeat liRStep; liShow.
   all: print_remaining_trait_goal.
   Unshelve.

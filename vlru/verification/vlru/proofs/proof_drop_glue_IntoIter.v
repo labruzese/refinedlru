@@ -1,16 +1,16 @@
 From radium Require Import lang notation.
 From refinedrust Require Import typing shims.
-From vlru.vlru.generated Require Import generated_code_vlru generated_specs_vlru generated_template_drop_glue_KeyWrapper.
+From lru.verification.vlru.generated Require Import generated_code_vlru generated_specs_vlru generated_template_drop_glue_IntoIter.
 
 Set Default Proof Using "Type".
 
 Section proof.
 Context `{RRGS : !refinedrustGS Σ}.
 
-Lemma drop_glue_KeyWrapper_proof (π : thread_id) :
-  drop_glue_KeyWrapper_lemma π.
+Lemma drop_glue_IntoIter_proof (π : thread_id) :
+  drop_glue_IntoIter_lemma π.
 Proof.
-  drop_glue_KeyWrapper_prelude.
+  drop_glue_IntoIter_prelude.
 
   rep <-! liRStep; liShow.
 

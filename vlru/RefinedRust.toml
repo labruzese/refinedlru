@@ -1,7 +1,7 @@
 work_dir = "."
-output_dir = "."
+output_dir = "./verification"
 lib_load_paths = ["../refinedrust-dev/stdlib/", "../extra_libs" ]
-extra_specs = "./extra_specs.v"
+extra_specs = "./verification/extra_specs.v"
 admit_proofs = false
 skip_unsupported_features = false
 generate_dune_project = true
