@@ -13,6 +13,6 @@
 #[rr::exists("borrow_to"   : "{xt_of Self} → {xt_of Borrowed}")]
 #[rr::exists("borrow_from" : "{xt_of Borrowed} → {xt_of Self}")]
 pub trait Borrow<Borrowed: ?Sized> {
-    #[rr::returns("borrow_to self")]
+    #[rr::returns("{borrow_to} self")]
     fn borrow(&self) -> &Borrowed;
 }
