@@ -211,18 +211,23 @@ impl<K, V> LruEntry<K, V> {
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 /// An LRU Cache
-#[rr::context("EqDecision {xt_of (KeyRef<K>)}")]
-#[rr::context("Countable {xt_of (KeyRef<K>)}")]
+#[rr::refined_by("l" : "list ({rt_of K} * {rt_of V})", "cap" : "nat")]
+#[rr::exists("hd" : "loc", "tl" : "loc", "m" : "gmap ({rt_of K}) loc")]
+#[rr::invariant("NoDup (fst <$> l)")]
+#[rr::invariant("length l ≤ cap")]
+#[rr::invariant(#iris "lru_dll π hd tl m l")]
 #[rr::context("EqDecision {xt_of K}")]
-#[rr::context("Countable {xt_of <K>}")]
+#[rr::context("Countable {xt_of K}")]
 #[rr::only_spec(drop_glue)]
 pub struct LruCache<K, V, S = DefaultHasher> {
+    #[rr::field("m")]
     map: HashMap<KeyRef<K>, NonNull<LruEntry<K, V>>, S>,
+    #[rr::field("Z.of_nat cap")]
     cap: usize,
 
     // head and tail are sigil nodes to facilitate inserting entries
-    head: *mut LruEntry<K, V>,
-    tail: *mut LruEntry<K, V>,
+    #[rr::field("hd")] head: *mut LruEntry<K, V>,
+    #[rr::field("tl")] tail: *mut LruEntry<K, V>,
 }
 
 #[rr::skip]
@@ -354,6 +359,11 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&1), Some(&"a"));
     /// assert_eq!(cache.get(&2), Some(&"beta"));
     /// ```
+    #[rr::params("l", "cap", "γ")]
+    #[rr::args("(#(l, cap), γ)", "k", "v")]
+    #[rr::requires("cap > 0")]                       
+    #[rr::returns("al_lookup l k")]
+    #[rr::observe("γ": "(al_put cap l k v, cap)")]
     pub fn put(&mut self, k: K, v: V) -> Option<V> {
         self.capturing_put(k, v, false).map(|(_, v)| v)
     }
@@ -474,6 +484,10 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&2), Some(&"c"));
     /// assert_eq!(cache.get(&3), Some(&"d"));
     /// ```
+    #[rr::params("l", "cap", "γ")]
+    #[rr::args("(#(l, cap), γ)", "k")]
+    #[rr::returns("(λ v : {rt_of V}, #v) <$> al_lookup l k")]   // Some(&v) iff present
+    #[rr::observe("γ": "(al_move_to_front l k, cap)")]
     pub fn get<'a, Q>(&'a mut self, k: &Q) -> Option<&'a V>
     where
         K: Borrow<Q>,
