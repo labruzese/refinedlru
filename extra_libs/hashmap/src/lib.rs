@@ -1,6 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(rr)]
 #![feature(custom_inner_attributes)]
+#![feature(allocator_api)]
 #![allow(unused)]
 
 #![rr::package("extra_libs")]
@@ -31,19 +32,22 @@ use std::hash::{BuildHasher, Hash};
 // key type to the semantic value type. Keys therefore need `EqDecision` and
 // `Countable` on their refinement type.
 
-#[rr::export_as(std::collections::HashMap)]
+
+#[rr::export_as(std::collections::hash_map::HashMap)]
 #[rr::context("EqDecision {xt_of K}")]
 #[rr::context("Countable {xt_of K}")]
 #[rr::refined_by("M" : "directRT (gmap {xt_of K} ({xt_of V}))")]
-#[rr::exists("k", "v", "s")]
+#[rr::exists("k", "v", "s", "a")]
 #[rr::only_spec(drop_glue)]
-pub struct HashMap<K, V, S = std::collections::hash_map::RandomState> {
+pub struct HashMap<K, V, S = std::collections::hash_map::RandomState, A = std::alloc::Global> {
     #[rr::field("k")]
     _k: K,
     #[rr::field("v")]
     _v: V,
     #[rr::field("s")]
     _s: S,
+    #[rr::field("a")]
+    _a: A,
 }
 
 // constructors

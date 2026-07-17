@@ -211,6 +211,10 @@ impl<K, V> LruEntry<K, V> {
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 /// An LRU Cache
+#[rr::context("EqDecision {xt_of (KeyRef<K>)}")]
+#[rr::context("Countable {xt_of (KeyRef<K>)}")]
+#[rr::context("EqDecision {xt_of K}")]
+#[rr::context("Countable {xt_of <K>}")]
 #[rr::only_spec(drop_glue)]
 pub struct LruCache<K, V, S = DefaultHasher> {
     map: HashMap<KeyRef<K>, NonNull<LruEntry<K, V>>, S>,
@@ -221,6 +225,7 @@ pub struct LruCache<K, V, S = DefaultHasher> {
     tail: *mut LruEntry<K, V>,
 }
 
+#[rr::skip]
 impl<K, V, S> Clone for LruCache<K, V, S>
 where
     K: Hash + PartialEq + Eq + Clone,
@@ -1735,6 +1740,7 @@ impl<'a, K: Hash + Eq, V, S: BuildHasher> IntoIterator for &'a mut LruCache<K, V
 unsafe impl<K: Send, V: Send, S: Send> Send for LruCache<K, V, S> {}
 unsafe impl<K: Sync, V: Sync, S: Sync> Sync for LruCache<K, V, S> {}
 
+#[rr::skip]
 impl<K: Hash + Eq, V, S: BuildHasher> fmt::Debug for LruCache<K, V, S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("LruCache")

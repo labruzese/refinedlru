@@ -1,6 +1,9 @@
 LIB_NAME = vlru
 VERIFICATION_DIR = ./verification
 
+PREFIX = $(shell opam var prefix 2>/dev/null)
+DUNE_INSTALL = dune install --prefix $(PREFIX)
+
 BLUE   := $(shell tput setaf 4 2>/dev/null)
 GREEN  := $(shell tput setaf 2 2>/dev/null)
 YELLOW := $(shell tput setaf 3 2>/dev/null)
@@ -28,7 +31,11 @@ rebuild: clean build
 
 clean:
 	@$(call log,clean,$(VERIFICATION_DIR))
-	(cargo clean 2>/dev/null; rm -rf $(VERIFICATION_DIR)/_build) || true
+	cargo clean
+	rm -rf $(VERIFICATION_DIR)/$(LIB_NAME)/generated
+	rm -f $(VERIFICATION_DIR)/$(LIB_NAME)/interface.rrlib
+	rm -f $(VERIFICATION_DIR)/$(LIB_NAME)/proofs/dune
+	cd $(VERIFICATION_DIR) && dune clean
 
 nuke: clean
 	@$(call log,nuke,$(VERIFICATION_DIR)/$(LIB_NAME))
