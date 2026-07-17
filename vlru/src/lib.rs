@@ -359,11 +359,11 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&1), Some(&"a"));
     /// assert_eq!(cache.get(&2), Some(&"beta"));
     /// ```
-    #[rr::params("l", "cap", "γ")]
-    #[rr::args("(#(l, cap), γ)", "k", "v")]
-    #[rr::requires("cap > 0")]                       
+    #[rr::params("l", "cap", "y")]
+    #[rr::args("(#(l, cap), y)", "k", "v")]
+    #[rr::requires("cap > 0")]
     #[rr::returns("al_lookup l k")]
-    #[rr::observe("γ": "(al_put cap l k v, cap)")]
+    #[rr::observe("y": "(al_put cap l k v, cap)")]
     pub fn put(&mut self, k: K, v: V) -> Option<V> {
         self.capturing_put(k, v, false).map(|(_, v)| v)
     }
@@ -484,10 +484,10 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&2), Some(&"c"));
     /// assert_eq!(cache.get(&3), Some(&"d"));
     /// ```
-    #[rr::params("l", "cap", "γ")]
-    #[rr::args("(#(l, cap), γ)", "k")]
-    #[rr::returns("(λ v : {rt_of V}, #v) <$> al_lookup l k")]   // Some(&v) iff present
-    #[rr::observe("γ": "(al_move_to_front l k, cap)")]
+    #[rr::params("l", "cap", "y")]
+    #[rr::args("(#(l, cap), y)", "k")]
+    #[rr::returns("(λ v : {rt_of V}, #v) <$> al_lookup l k")]
+    #[rr::observe("y": "(al_move_to_front l k, cap)")]
     pub fn get<'a, Q>(&'a mut self, k: &Q) -> Option<&'a V>
     where
         K: Borrow<Q>,
