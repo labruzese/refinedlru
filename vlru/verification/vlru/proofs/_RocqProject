@@ -1,0 +1,60 @@
+-arg -w
+-arg -notation-overridden
+-arg -w
+-arg -redundant-canonical-projection
+-arg -w
+-arg -deprecated-native-compiler-option
+-arg -w
+-arg -native-compiler-disabled
+-arg -native-compiler
+-arg ondemand
+-arg -boot
+-R /home/sky/.opam/refinedrust/lib/coq/theories Corelib
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/stdpp stdpp
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/iris iris
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/iris_contrib iris_contrib
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/Ltac2 Ltac2
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/Equations Equations
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/lrust lrust
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/radium radium
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/lithium lithium
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/refinedrust refinedrust
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/Stdlib Stdlib
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/extralibs/borrow/borrow/generated extralibs.borrow.borrow.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/extralibs/hash/hash/generated extralibs.hash.hash.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/extralibs/hashmap/hashmap/generated extralibs.hashmap.hashmap.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/alloc/alloc/generated rrstd.alloc.alloc.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/alloc/theories rrstd.alloc.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/alloc/vec/generated rrstd.alloc.vec.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/arithops/arithops/generated rrstd.arithops.arithops.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/boxed/boxed/generated rrstd.boxed.boxed.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/clone/clone/generated rrstd.clone.clone.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/closures/closures/generated rrstd.closures.closures.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/closures/theories rrstd.closures.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/cmp/cmp/generated rrstd.cmp.cmp.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/cmp/theories rrstd.cmp.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/controlflow/controlflow/generated rrstd.controlflow.controlflow.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/index/index/generated rrstd.index.index.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/iterator/iterator/generated rrstd.iterator.iterator.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/iterator/theories rrstd.iterator.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/mem/mem/generated rrstd.mem.mem.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/mem/theories rrstd.mem.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/num/num/generated rrstd.num.num.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/option/option/generated rrstd.option.option.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/ptr/ptr/generated rrstd.ptr.ptr.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/ptr/theories rrstd.ptr.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/ptr_advanced/ptr_advanced/generated rrstd.ptr_advanced.ptr_advanced.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/range/range/generated rrstd.range.range.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/result/result/generated rrstd.result.result.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/result/theories rrstd.result.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/rr_internal/rr_internal/generated rrstd.rr_internal.rr_internal.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/rr_internal/theories rrstd.rr_internal.theories
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/sized/sized/generated rrstd.sized.sized.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/stdlib/stdlib/generated rrstd.stdlib.stdlib.generated
+-Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/vec/theories rrstd.vec.theories
+-Q ../../theories vlru.verification.theories
+-Q ../../_build/default/theories vlru.verification.theories
+-Q ../generated lru.verification.vlru.generated
+-Q ../../_build/default/vlru/generated lru.verification.vlru.generated
+-R . lru.verification.vlru.proofs
+-R ../../_build/default/vlru/proofs lru.verification.vlru.proofs

@@ -75,6 +75,8 @@
 #![rr::include("hash")]
 #![rr::include("hashmap")]
 
+#![rr::import("vlru.verification.theories", "dll")]
+
 use core::ptr::NonNull;
 
 extern crate std;
@@ -101,14 +103,27 @@ mod drop;
 
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
-/// An LRU Cache
+// cache ≡ list of (K*V) + capacity
 #[rr::refined_by("l" : "list ({rt_of K} * {rt_of V})", "cap" : "nat")]
+// ∃ head and tail pointers and our map of keys to list nodes
 #[rr::exists("hd" : "loc", "tl" : "loc", "m" : "gmap ({rt_of K}) loc")]
+// No duplicate keys in cache
 #[rr::invariant("NoDup (fst <$> l)")]
+// size of cache doesn't exceed capacity
 #[rr::invariant("length l ≤ cap")]
-#[rr::invariant(#iris "lru_dll π hd tl m l")]
+// invariants about corrospondance of the map and list see `../verification/specs.v`
+#[rr::depends_on(LruEntry)]
+#[rr::invariant(#iris "lru_dll
+    (λ π l ko vo prev next,
+        l ◁ₗ[π, Owned] #((ko, vo, prev, next))
+        @ ◁(LruEntry_ty {rt_of K} {rt_of V} <TY> {K} {V} <INST!>)
+    )
+    π hd tl m l")]
+// keys are comparable for equality
 #[rr::context("EqDecision {xt_of K}")]
+// keys have injection to positive
 #[rr::context("Countable {xt_of K}")]
+// do not prove correctness of drop glue
 #[rr::only_spec(drop_glue)]
 pub struct LruCache<K, V, S = DefaultHasher> {
     #[rr::field("m")]

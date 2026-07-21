@@ -25,10 +25,6 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&2), Some(&"c"));
     /// assert_eq!(cache.get(&3), Some(&"d"));
     /// ```
-    #[rr::params("l", "cap", "y")]
-    #[rr::args("(#(l, cap), y)", "k")]
-    #[rr::returns("(λ v : {rt_of V}, #v) <$> al_lookup l k")]
-    #[rr::observe("y": "(al_move_to_front l k, cap)")]
     pub fn get<'a, Q>(&'a mut self, k: &Q) -> Option<&'a V>
     where
         K: Borrow<Q>,

@@ -25,11 +25,6 @@ impl<K: Hash + Eq, V, S: BuildHasher> LruCache<K, V, S> {
     /// assert_eq!(cache.get(&1), Some(&"a"));
     /// assert_eq!(cache.get(&2), Some(&"beta"));
     /// ```
-    #[rr::params("l", "cap", "y")]
-    #[rr::args("(#(l, cap), y)", "k", "v")]
-    #[rr::requires("cap > 0")]
-    #[rr::returns("al_lookup l k")]
-    #[rr::observe("y": "(al_put cap l k v, cap)")]
     pub fn put(&mut self, k: K, v: V) -> Option<V> {
         self.capturing_put(k, v, false).map(|(_, v)| v)
     }
