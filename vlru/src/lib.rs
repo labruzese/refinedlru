@@ -62,6 +62,7 @@
 #![feature(register_tool)]
 #![register_tool(rr)]
 #![feature(custom_inner_attributes)]
+#![feature(allocator_api)]
 
 #![no_std]
 
@@ -104,7 +105,10 @@ mod drop;
 pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 // cache ≡ list of (K*V) + capacity
-#[rr::refined_by("l" : "list ({rt_of K} * {rt_of V})", "cap" : "nat")]
+#[rr::refined_by(
+    "(l, cap)" :
+    "(list ({rt_of K} * {rt_of V}) * nat)"
+)]
 // ∃ head and tail pointers and our map of keys to list nodes
 #[rr::exists("hd" : "loc", "tl" : "loc", "m" : "gmap ({rt_of K}) loc")]
 // No duplicate keys in cache
@@ -115,9 +119,8 @@ pub type DefaultHasher = std::collections::hash_map::RandomState;
 #[rr::depends_on(LruEntry)]
 #[rr::invariant(#iris "lru_dll
     (λ π l ko vo prev next,
-        l ◁ₗ[π, Owned] #((ko, vo, prev, next))
-        @ ◁(LruEntry_ty {rt_of K} {rt_of V} <TY> {K} {V} <INST!>)
-    )
+        guarded true (l ◁ₗ[π, Owned] #( *[ #ko; #vo; #prev; #next ])
+        @ ◁(LruEntry_ty {rt_of K} {rt_of V} <TY> {K} <TY> {V} <INST!>)))
     π hd tl m l")]
 // keys are comparable for equality
 #[rr::context("EqDecision {xt_of K}")]
@@ -127,7 +130,7 @@ pub type DefaultHasher = std::collections::hash_map::RandomState;
 #[rr::only_spec(drop_glue)]
 pub struct LruCache<K, V, S = DefaultHasher> {
     #[rr::field("m")]
-    map: HashMap<keys::KeyRef<K>, NonNull<entry::LruEntry<K, V>>, S>,
+    map: HashMap<keys::KeyRef<K>, NonNull<entry::LruEntry<K, V>>, S, alloc::alloc::Global>,
     #[rr::field("Z.of_nat cap")]
     cap: usize,
 

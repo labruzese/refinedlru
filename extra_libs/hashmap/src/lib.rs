@@ -13,8 +13,9 @@
 #![rr::include("hash")]
 #![rr::include("borrow")]
 
-use std::borrow::Borrow;
+use std::alloc::{Allocator, Global};
 use std::hash::{BuildHasher, Hash};
+use std::borrow::Borrow;
 
 // std::collections::HashMap
 //
@@ -39,15 +40,11 @@ use std::hash::{BuildHasher, Hash};
 #[rr::refined_by("M" : "directRT (gmap {xt_of K} ({xt_of V}))")]
 #[rr::exists("k", "v", "s", "a")]
 #[rr::only_spec(drop_glue)]
-pub struct HashMap<K, V, S = std::collections::hash_map::RandomState, A = std::alloc::Global> {
-    #[rr::field("k")]
-    _k: K,
-    #[rr::field("v")]
-    _v: V,
-    #[rr::field("s")]
-    _s: S,
-    #[rr::field("a")]
-    _a: A,
+pub struct HashMap<K, V, S = std::collections::hash_map::RandomState, A: Allocator = Global> {
+    #[rr::field("k")] _k: K,
+    #[rr::field("v")] _v: V,
+    #[rr::field("s")] _s: S,
+    #[rr::field("a")] _a: A,
 }
 
 // constructors
