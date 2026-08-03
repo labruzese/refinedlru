@@ -10,9 +10,6 @@ Section slru_dll.
 
   Context (node_ty : type node_rt).
 
-  (* nodes from [nfst] to [plst] inclusive hold [xs];
-    [pfst] is the predecessor of the first node,
-    [nlst] is the successor of the last. *)
   Fixpoint dll (π : thread_id) (xs : list (K_rt * V_rt)) (cur next tail tprev: loc) : iProp Σ :=
     match xs with
     | [] => ⌜next = tail⌝ ∗ ⌜tprev = cur⌝
