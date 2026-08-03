@@ -1,6 +1,12 @@
+// This implementation uses ownership semantics that assumes there's a hashmap 
+// looking at the linked list nodes which will be implemented in the future.
+
 #![feature(register_tool)]
 #![register_tool(rr)]
 #![feature(custom_inner_attributes)]
+
+#![expect(incomplete_features)]
+#![feature(explicit_tail_calls)]
 
 #![no_std]
 
@@ -8,7 +14,7 @@
 #![rr::coq_prefix("slru.verification")]
 #![rr::include("stdlib")]
 
-use core::{mem, ptr};
+use core::{mem, ptr, marker};
 extern crate alloc;
 
 use alloc::{
@@ -16,13 +22,24 @@ use alloc::{
     boxed::Box,
 };
 
+#[rr::refined_by("()": "(option ({rt_of K} * {rt_of V}) * loc * loc)")]
+#[rr::exists("kv : option ({rt_of K} * {rt_of V})")]
+#[rr::invariant("∃ kv, 
+match kv with 
+    Some (kb, vb) => kb == k && vb == v
+    None => is_none k && is_none v
+.")]
+
 struct ListNode<K: Eq, V> {
-    pub key: Option<K>,
-    pub val: Option<V>,
-    pub next: *mut ListNode<K, V>,
-    pub prev: *mut ListNode<K, V>,
+    #[rr::field("k")] pub key: Option<K>,
+    #[rr::field("v")] pub val: Option<V>,
+    #[rr::field("n")] pub next: *mut ListNode<K, V>,
+    #[rr::field("p")] pub prev: *mut ListNode<K, V>,
 }
 impl<K: Eq, V> ListNode<K, V> {
+    #[rr::params("k", "v")]
+    #[rr::args("k", "v")]
+    #[rr::returns("(Some k, Some v, NULL_loc, NULL_loc)")]
     pub fn new(key: K, val: V) -> Self {
         ListNode {
             key: Some(key),
@@ -31,6 +48,8 @@ impl<K: Eq, V> ListNode<K, V> {
             prev: ptr::null_mut(),
         }
     }
+
+    #[rr::returns("(None, None, NULL_loc, NULL_loc)")]
     pub fn sigil() -> Self {
         ListNode {
             key: None,
@@ -39,14 +58,50 @@ impl<K: Eq, V> ListNode<K, V> {
             prev: ptr::null_mut(),
         }
     }
+
+    pub fn attach(&mut self, node: &mut ListNode<K, V>) {
+        unsafe { (*self.next).prev = node }
+        node.next = self.next;
+        node.prev = self;
+        self.next = node;
+    }
+
+    pub fn detach(&mut self) {
+        let prev = self.prev;
+        let next = self.next;
+
+        unsafe { (*prev).next = next };
+        unsafe { (*next).prev = prev };
+    }
+
+    pub fn find<Q>(&self, target_key: &Q) -> Option<*mut ListNode<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Eq + ?Sized,
+    {
+        let node = unsafe { &*self.next };
+        let key: Option<&Q> = node.key.as_ref().map(Borrow::borrow);
+        match key {
+            Some(k) if k == target_key => Some(self.next),
+            Some(_) => become node.find(target_key),
+            None => None,
+        }
+    }
 }
 
 #[rr::only_spec(drop_glue)]
+#[rr::refined_by("(l, cap)": "(list ({rt_of K} * {rt_of V}) * nat)")]
+#[rr::exists("hd" : "loc", "tl" : "loc")]
+#[rr::invariant("NoDup (fst <$> l)")]
+#[rr::invariant("length l ≤ cap")]
+#[rr::invariant(#iris "slru_dll π hd tl l")]
+#[rr::context("EqDecision {xt_of K}")]
 pub struct LruCache<K: Eq, V> {
+    #[rr::field("cap")] cap: u32,
+    #[rr::field("hd")] head: *mut ListNode<K, V>,
+    #[rr::field("tl")] tail: *mut ListNode<K, V>,
     size: u32,
-    cap: u32,
-    head: *mut ListNode<K, V>,
-    tail: *mut ListNode<K, V>,
+    _map: marker::PhantomData<*mut ListNode<K, V>>,
 }
 
 impl<K: Eq, V> LruCache<K, V> {
@@ -61,10 +116,11 @@ impl<K: Eq, V> LruCache<K, V> {
             (*tail).prev = head;
         }
         LruCache {
+            cap,
             head,
             tail,
             size: 0,
-            cap,
+            _map: marker::PhantomData,
         }
     }
 
@@ -73,76 +129,42 @@ impl<K: Eq, V> LruCache<K, V> {
         K: borrow::Borrow<Q>,
         Q: Eq + ?Sized,
     {
-        let vptr = self.lookup(key)?;
-        self.detach(vptr);
-        self.attach(vptr, self.head);
-        let v = unsafe { (*vptr).val.as_ref().unwrap() };
-        Some(v)
+        let head = unsafe {self.head.as_mut_unchecked()};
+        let node = head.find(key)?;
+        // we have the only mut ref since nobody self have mut self and we've only accessed through list
+        let rnode = unsafe { node.as_mut().unwrap() };
+        rnode.detach();
+        head.attach(rnode);
+        Some(rnode.val.as_ref().unwrap())
     }
 
     pub fn put(&mut self, key: K, mut val: V) -> Option<V> {
-        match self.lookup(&key) {
+        let rhead = unsafe { self.head.as_mut_unchecked() };
+        match rhead.find(&key).map(|n|unsafe{n.as_mut_unchecked()}) {
             Some(node) => {
-                self.detach(node);
+                node.detach();
 
-                mem::swap(&mut val, unsafe { (*node).val.as_mut().unwrap() });
+                mem::swap(&mut val, node.val.as_mut().unwrap());
 
-                self.attach(node, self.head);
+                rhead.attach(node);
                 Some(val)
             }
             None if self.size < self.cap => {
                 self.size += 1;
-                let node_ptr = Box::into_raw(Box::new(ListNode::new(key, val)));
-                self.attach(node_ptr, self.head);
+                let mut node_ptr = Box::new(ListNode::new(key, val));
+                rhead.attach(&mut node_ptr);
                 None
             }
             None => {
-                let node_ptr = unsafe { (*self.tail).prev };
-                self.detach(node_ptr);
-                let replaced = unsafe {
-                    (
-                        mem::replace(&mut (*node_ptr).key, Some(key)).unwrap(),
-                        mem::replace(&mut (*node_ptr).val, Some(val)).unwrap(),
-                    )
-                };
-                self.attach(node_ptr, self.head);
-                Some(replaced.1)
+                debug_assert!(self.cap >= 1);
+                let rlast = unsafe { (*self.tail).prev.as_mut_unchecked() };
+                rlast.detach();
+                let _old_key = mem::replace(&mut rlast.key, Some(key)).unwrap();
+                let old_val  = mem::replace(&mut rlast.val, Some(val)).unwrap();
+                rhead.attach(rlast);
+                Some(old_val)
             }
         }
-    }
-
-    fn lookup<Q>(&self, target_key: &Q) -> Option<*mut ListNode<K, V>>
-    where
-        K: Borrow<Q>,
-        Q: Eq + ?Sized,
-    {
-        let mut cur_ptr = self.head;
-        loop {
-            cur_ptr = unsafe { (*cur_ptr).next };
-            if ptr::eq(self.tail, cur_ptr) {
-                return None;
-            }
-
-            let key_ref = unsafe { (*(cur_ptr)).key.as_ref().unwrap() };
-            if key_ref.borrow() == target_key {
-                return Some(cur_ptr);
-            }
-        }
-    }
-
-    fn attach(&mut self, node: *mut ListNode<K, V>, after: *mut ListNode<K, V>) {
-        unsafe { (*(*after).next).prev = node }
-        unsafe { (*node).next = (*after).next }
-        unsafe { (*node).prev = after }
-        unsafe { (*after).next = node }
-    }
-
-    fn detach(&mut self, node: *mut ListNode<K, V>) {
-        let prev = unsafe { (*node).prev };
-        let next = unsafe { (*node).next };
-
-        unsafe { (*prev).next = next };
-        unsafe { (*next).prev = prev };
     }
 }
 
