@@ -30,10 +30,10 @@ struct ListNode<K, V> {
     pub prev: *mut ListNode<K, V>,
 }
  
-impl<K, V> ListNode<K, V> {
+impl<K:Eq, V> ListNode<K, V> {
     #[rr::params("k", "v")]
     #[rr::args("k", "v")]
-    #[rr::returns("-[(Some (#k); Some (#v); NULL_loc; NULL_loc]")]
+    #[rr::returns("*[Some k; Some v; NULL_loc; NULL_loc]")]
     pub fn new(key: K, val: V) -> Self {
         ListNode {
             key: Some(key),
@@ -43,7 +43,7 @@ impl<K, V> ListNode<K, V> {
         }
     }
  
-    #[rr::returns("-[None; None; NULL_loc; NULL_loc]")]
+    #[rr::returns("*[None; None; NULL_loc; NULL_loc]")]
     pub fn sigil() -> Self {
         ListNode {
             key: None,
@@ -88,7 +88,6 @@ impl<K, V> ListNode<K, V> {
 #[rr::only_spec(drop_glue)]
 #[rr::refined_by("(l, cap)" : "directRT (list ({xt_of K} * {xt_of V}) * nat)")]
 #[rr::exists("hd" : "loc", "tl" : "loc")]
-#[rr::invariant("NoDup (fst <$> l)")]
 #[rr::invariant("length l ≤ cap")]
 #[rr::depends_on(ListNode)]
 #[rr::invariant(#iris "slru_dll
@@ -98,7 +97,6 @@ impl<K, V> ListNode<K, V> {
     π hd tl l")]
 #[rr::ty_lfts("ty_lfts {K}", "ty_lfts {V}")]
 #[rr::ty_wf_E("ty_wf_E {K}", "ty_wf_E {V}")]
-#[rr::context("EqDecision {xt_of K}")]
 pub struct LruCache<K, V> {
     #[rr::field("Z.of_nat cap")] cap: u32,
     #[rr::field("hd")] head: *mut ListNode<K, V>,
@@ -108,6 +106,7 @@ pub struct LruCache<K, V> {
 
 }
 
+#[rr::context("EqDecision {xt_of K}")]
 impl<K: Eq, V> LruCache<K, V> {
     #[rr::params("cap")]
     #[rr::args("cap")]
