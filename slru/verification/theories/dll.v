@@ -3,19 +3,33 @@ From refinedrust Require Import typing shims.
 
 Section slru_dll.
   Context `{RRGS : !refinedrustGS Σ}.
-  Context {K_rt V_rt : RT}. 
-  Context `{!EqDecision K_rt}.
+  Context {K_rt V_rt : RT}.
 
-  Notation node_rt := ((option (K_rt * V_rt) * loc * loc)%type).
+  (* Ownership of a single node, ListNode field order: key, val, prev, next. *)
+  Context (node_own :
+    thread_id →
+    loc →
+    option (place_rfn K_rt) →
+    option (place_rfn V_rt) →
+    loc →
+    loc →
+    iProp Σ
+  ).
 
-  Context (node_ty : type node_rt).
+  Notation elist := (list (RT_xt K_rt * RT_xt V_rt)).
 
-  Fixpoint dll (π : thread_id) (xs : list (K_rt * V_rt)) (cur next tail tprev: loc) : iProp Σ :=
-    match xs with
-    | [] => ⌜next = tail⌝ ∗ ⌜tprev = cur⌝
-    | (nextk, nextv) :: xs' =>
-        ∃ nextnext : loc,
-          cur◁ₗ[π, Owned] #(-[ #(Some -[nextk; nextv]); #nextnext; #cur]) @ (◁ node_ty) ∗
-          dll π xs' next nextnext tail tprev
+  Fixpoint slru_chain (π : thread_id) (prevp cur tl lastp : loc) (l : elist) : iProp Σ :=
+    match l with
+    | [] => ⌜cur = tl⌝ ∗ ⌜prevp = lastp⌝
+    | (k, v) :: l' =>
+        ∃ nextp : loc,
+          node_own π cur (Some (#($# k))) (Some (#($# v))) prevp nextp ∗
+          slru_chain π cur nextp tl lastp l'
     end.
+
+  Definition slru_dll (π : thread_id) (hd tl : loc) (l : elist) : iProp Σ :=
+    ∃ firstp lastp : loc,
+      node_own π hd None None NULL_loc firstp ∗
+      node_own π tl None None lastp NULL_loc ∗
+      slru_chain π hd firstp tl lastp l.
 End slru_dll.

@@ -49,6 +49,8 @@
 -Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/sized/sized/generated rrstd.sized.sized.generated
 -Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/stdlib/stdlib/generated rrstd.stdlib.stdlib.generated
 -Q /home/sky/.opam/refinedrust/lib/coq/user-contrib/rrstd/vec/theories rrstd.vec.theories
+-Q ../../theories slru.verification.theories
+-Q ../../_build/default/theories slru.verification.theories
 -Q ../generated slru.verification.slru.generated
 -Q ../../_build/default/slru/generated slru.verification.slru.generated
 -R . slru.verification.slru.proofs

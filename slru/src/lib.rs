@@ -13,6 +13,7 @@
 #![rr::package("slru")]
 #![rr::coq_prefix("slru.verification")]
 #![rr::include("stdlib")]
+#![rr::import("slru.verification.theories", "dll")]
 
 use core::{mem, ptr, marker};
 extern crate alloc;
@@ -22,24 +23,17 @@ use alloc::{
     boxed::Box,
 };
 
-#[rr::refined_by("()": "(option ({rt_of K} * {rt_of V}) * loc * loc)")]
-#[rr::exists("kv : option ({rt_of K} * {rt_of V})")]
-#[rr::invariant("∃ kv, 
-match kv with 
-    Some (kb, vb) => kb == k && vb == v
-    None => is_none k && is_none v
-.")]
-
-struct ListNode<K: Eq, V> {
-    #[rr::field("k")] pub key: Option<K>,
-    #[rr::field("v")] pub val: Option<V>,
-    #[rr::field("n")] pub next: *mut ListNode<K, V>,
-    #[rr::field("p")] pub prev: *mut ListNode<K, V>,
+struct ListNode<K, V> {
+    pub key:  Option<K>,
+    pub val:  Option<V>,
+    pub next: *mut ListNode<K, V>,
+    pub prev: *mut ListNode<K, V>,
 }
-impl<K: Eq, V> ListNode<K, V> {
+ 
+impl<K, V> ListNode<K, V> {
     #[rr::params("k", "v")]
     #[rr::args("k", "v")]
-    #[rr::returns("(Some k, Some v, NULL_loc, NULL_loc)")]
+    #[rr::returns("-[(Some (#k); Some (#v); NULL_loc; NULL_loc]")]
     pub fn new(key: K, val: V) -> Self {
         ListNode {
             key: Some(key),
@@ -48,8 +42,8 @@ impl<K: Eq, V> ListNode<K, V> {
             prev: ptr::null_mut(),
         }
     }
-
-    #[rr::returns("(None, None, NULL_loc, NULL_loc)")]
+ 
+    #[rr::returns("-[None; None; NULL_loc; NULL_loc]")]
     pub fn sigil() -> Self {
         ListNode {
             key: None,
@@ -58,22 +52,23 @@ impl<K: Eq, V> ListNode<K, V> {
             prev: ptr::null_mut(),
         }
     }
-
+ 
     pub fn attach(&mut self, node: &mut ListNode<K, V>) {
         unsafe { (*self.next).prev = node }
         node.next = self.next;
         node.prev = self;
         self.next = node;
     }
-
+ 
     pub fn detach(&mut self) {
         let prev = self.prev;
         let next = self.next;
-
+ 
         unsafe { (*prev).next = next };
         unsafe { (*next).prev = prev };
     }
-
+ 
+    #[rr::skip]
     pub fn find<Q>(&self, target_key: &Q) -> Option<*mut ListNode<K, V>>
     where
         K: Borrow<Q>,
@@ -89,22 +84,35 @@ impl<K: Eq, V> ListNode<K, V> {
     }
 }
 
+
 #[rr::only_spec(drop_glue)]
-#[rr::refined_by("(l, cap)": "(list ({rt_of K} * {rt_of V}) * nat)")]
+#[rr::refined_by("(l, cap)" : "directRT (list ({xt_of K} * {xt_of V}) * nat)")]
 #[rr::exists("hd" : "loc", "tl" : "loc")]
 #[rr::invariant("NoDup (fst <$> l)")]
 #[rr::invariant("length l ≤ cap")]
-#[rr::invariant(#iris "slru_dll π hd tl l")]
+#[rr::depends_on(ListNode)]
+#[rr::invariant(#iris "slru_dll
+    (λ π ln ko vo prev next,
+        guarded true (ln ◁ₗ[π, Owned] #( *[ #ko; #vo; #next; #prev ])
+        @ ◁(ListNode_ty {rt_of K} {rt_of V} <TY> {K} <TY> {V} <INST!>)))
+    π hd tl l")]
+#[rr::ty_lfts("ty_lfts {K}", "ty_lfts {V}")]
+#[rr::ty_wf_E("ty_wf_E {K}", "ty_wf_E {V}")]
 #[rr::context("EqDecision {xt_of K}")]
-pub struct LruCache<K: Eq, V> {
-    #[rr::field("cap")] cap: u32,
+pub struct LruCache<K, V> {
+    #[rr::field("Z.of_nat cap")] cap: u32,
     #[rr::field("hd")] head: *mut ListNode<K, V>,
     #[rr::field("tl")] tail: *mut ListNode<K, V>,
-    size: u32,
-    _map: marker::PhantomData<*mut ListNode<K, V>>,
+    #[rr::field("Z.of_nat (length l)")] size: u32,
+    #[rr::field("tt")] _map: marker::PhantomData<*mut ListNode<K, V>>,
+
 }
 
 impl<K: Eq, V> LruCache<K, V> {
+    #[rr::params("cap")]
+    #[rr::args("cap")]
+    #[rr::requires("cap > 0")]
+    #[rr::returns("([], Z.to_nat cap)")]
     pub fn new(cap: u32) -> Self {
         assert!(cap > 0);
         let head = Box::into_raw(Box::new(ListNode::sigil()));
@@ -124,6 +132,7 @@ impl<K: Eq, V> LruCache<K, V> {
         }
     }
 
+    #[rr::skip]
     pub fn get<'a, Q>(&'a mut self, key: &Q) -> Option<&'a V>
     where
         K: borrow::Borrow<Q>,
@@ -138,6 +147,7 @@ impl<K: Eq, V> LruCache<K, V> {
         Some(rnode.val.as_ref().unwrap())
     }
 
+    #[rr::skip]
     pub fn put(&mut self, key: K, mut val: V) -> Option<V> {
         let rhead = unsafe { self.head.as_mut_unchecked() };
         match rhead.find(&key).map(|n|unsafe{n.as_mut_unchecked()}) {
@@ -169,7 +179,7 @@ impl<K: Eq, V> LruCache<K, V> {
 }
 
 #[rr::skip]
-impl<K: Eq, V> Drop for LruCache<K, V> {
+impl<K, V> Drop for LruCache<K, V> {
     fn drop(&mut self) {
         let mut cur = self.head;
         while !cur.is_null() {
