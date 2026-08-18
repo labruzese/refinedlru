@@ -14,6 +14,7 @@
 #![rr::coq_prefix("slru.verification")]
 #![rr::include("stdlib")]
 #![rr::import("slru.verification.theories", "dll")]
+#![rr::import("slru.verification.theories", "model")]
 
 use core::{mem, ptr, marker};
 extern crate alloc;
@@ -87,14 +88,20 @@ impl<K:Eq, V> ListNode<K, V> {
 
 #[rr::only_spec(drop_glue)]
 #[rr::refined_by("(l, cap)" : "directRT (list ({xt_of K} * {xt_of V}) * nat)")]
-#[rr::exists("hd" : "loc", "tl" : "loc")]
+// [locs] is the list of payload node addresses, exposed here rather than
+// hidden inside [slru_dll] so that the hash map to be added later can relate a
+// key to [locs !! i].
+#[rr::exists("hd" : "loc", "tl" : "loc", "locs" : "list loc")]
+#[rr::invariant("length locs = length l")]
+#[rr::invariant("Forall (λ p, p.(loc_a) ≠ 0) (hd :: locs ++ [tl])")]
+#[rr::invariant("NoDup l.*1")]
 #[rr::invariant("length l ≤ cap")]
 #[rr::depends_on(ListNode)]
 #[rr::invariant(#iris "slru_dll
     (λ π ln ko vo prev next,
         guarded true (ln ◁ₗ[π, Owned] #( *[ #ko; #vo; #next; #prev ])
         @ ◁(ListNode_ty {rt_of K} {rt_of V} <TY> {K} <TY> {V} <INST!>)))
-    π hd tl l")]
+    π hd tl locs l")]
 #[rr::ty_lfts("ty_lfts {K}", "ty_lfts {V}")]
 #[rr::ty_wf_E("ty_wf_E {K}", "ty_wf_E {V}")]
 pub struct LruCache<K, V> {

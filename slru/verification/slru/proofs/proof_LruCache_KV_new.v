@@ -17,6 +17,8 @@ Proof.
   all: print_remaining_goal.
   Unshelve. all: sidecond_solver.
   Unshelve. all: sidecond_hammer.
+  (* the fresh cache holds no keys, so [NoDup l.*1] is trivial *)
+  - apply NoDup_nil_2.
   Unshelve. all: print_remaining_sidecond.
 Qed.
 End proof.
